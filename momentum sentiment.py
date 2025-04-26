@@ -29,12 +29,16 @@ if data.empty:
     st.stop()
 
 # Handle both single and multiple tickers
-if isinstance(data.columns, pd.MultiIndex):
-    if 'Adj Close' in data.columns.levels[0]:
+try:
+    if isinstance(data.columns, pd.MultiIndex):
         data = data['Adj Close']
     else:
-        st.error("'Adj Close' not found in downloaded data. Try again later.")
-        st.stop()
+        if 'Adj Close' not in data.columns:
+            st.error("'Adj Close' not found. Please check the ticker symbols.")
+            st.stop()
+except Exception as e:
+    st.error(f"Unexpected error extracting 'Adj Close': {str(e)}")
+    st.stop()
 
 returns = data.pct_change().dropna()
 
