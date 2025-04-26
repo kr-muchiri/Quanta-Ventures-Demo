@@ -18,6 +18,16 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
+# Strategy Explanation
+with st.expander("ℹ️ What is Max Sharpe Ratio?"):
+    st.write("This strategy maximizes the risk-adjusted return of a portfolio by optimizing the Sharpe ratio. It considers both the expected return and the volatility of the portfolio.")
+
+with st.expander("ℹ️ What is Minimum Variance?"):
+    st.write("This strategy minimizes total portfolio risk based on historical asset volatility and correlation. It does not directly consider expected returns.")
+
+with st.expander("ℹ️ What is Monte Carlo Simulation?"):
+    st.write("Monte Carlo simulation is used to model the probability of different outcomes in portfolio performance by simulating thousands of portfolios with random weight combinations. It helps visualize the efficient frontier and assess trade-offs between risk and return.")
+
 # Sidebar inputs
 st.sidebar.header("Configuration")
 tickers = st.sidebar.text_input("Enter tickers (comma separated)", "AAPL,MSFT,GOOGL,AMZN,TSLA")
@@ -81,11 +91,7 @@ def portfolio_performance(weights, mean_returns, cov_matrix, risk_free_rate=0):
 def max_sharpe_objective(weights, mean_returns, cov_matrix):
     return -portfolio_performance(weights, mean_returns, cov_matrix)[2]
 
-def min_variance_objective(weights, mean_returns, cov_matrix):
-    return weights.T @ cov_matrix @ weights
-
 penalty_factor = 10
-
 def min_variance_with_penalty(weights, mean_returns, cov_matrix):
     variance = weights.T @ cov_matrix @ weights
     diversity_penalty = np.sum(weights**3)
