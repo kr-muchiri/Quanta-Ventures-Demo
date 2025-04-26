@@ -21,8 +21,21 @@ if len(tickers) < 2:
     st.warning("Please enter at least two tickers.")
     st.stop()
 
-# Download data
-data = yf.download(tickers, start=start_date, end=end_date)['Adj Close']
+# Download data safely
+data = yf.download(tickers, start=start_date, end=end_date)
+
+if data.empty:
+    st.error("No data retrieved. Please check your ticker symbols and date range.")
+    st.stop()
+
+# Handle both single and multiple tickers
+if isinstance(data.columns, pd.MultiIndex):
+    if 'Adj Close' in data.columns.levels[0]:
+        data = data['Adj Close']
+    else:
+        st.error("'Adj Close' not found in downloaded data. Try again later.")
+        st.stop()
+
 returns = data.pct_change().dropna()
 
 # Mean returns and covariance matrix
