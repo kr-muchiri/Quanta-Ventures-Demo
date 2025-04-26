@@ -53,15 +53,16 @@ def get_data(tickers, start, end):
         st.error("No data was returned. Please check the tickers or your internet connection.")
         st.stop()
 
-    # Reconstruct 'Adj Close' manually if needed
-    if isinstance(data.columns, pd.MultiIndex):
-        try:
-            adj_close = pd.concat({ticker: data[ticker]['Adj Close'] for ticker in valid_tickers if 'Adj Close' in data[ticker]}, axis=1)
-        except Exception as e:
-            st.error("Couldn't extract 'Adj Close' from downloaded data.")
-            st.stop()
-    else:
-        adj_close = data
+    # Reconstruct 'Adj Close'
+    try:
+        if isinstance(data.columns, pd.MultiIndex):
+            adj_close = data.xs("Adj Close", axis=1, level=1, drop_level=False)
+            adj_close.columns = adj_close.columns.droplevel(1)  # Drop 'Adj Close' level
+        else:
+            adj_close = data
+    except Exception as e:
+        st.error(f"Error extracting 'Adj Close': {str(e)}")
+        st.stop()
 
     if invalid_tickers:
         st.warning(f"The following tickers were skipped due to missing data: {', '.join(invalid_tickers)}")
@@ -69,36 +70,39 @@ def get_data(tickers, start, end):
     fundamentals = {t: yf.Ticker(t) for t in valid_tickers}
     return adj_close, fundamentals
 
-
+# -- Z-score utility --
 def zscore(series, inverse=False):
     mean, std = series.mean(), series.std()
     return ((-1 if inverse else 1) * (series - mean) / std) if std > 0 else pd.Series(0, index=series.index)
 
+# -- Factor computation --
 def factors(prices, funds, tickers):
     latest = prices.iloc[-1]
-    mom = {t: (latest[t] / prices[t].iloc[0] - 1) for t in tickers if t in prices}
-    val, qual, size = {}, {}, {}
+    mom, val, qual, size = {}, {}, {}, {}
     for t in tickers:
         tk = funds.get(t)
-        if not tk or t not in prices: continue
+        if not tk or t not in prices.columns: continue
         info, bs, inc = tk.info, tk.balance_sheet, tk.income_stmt
+        try: mom[t] = (latest[t] / prices[t].iloc[0]) - 1
+        except: pass
         try: val[t] = latest[t] / (inc.loc['Net Income'][0] / info['sharesOutstanding'])
         except: pass
         try: qual[t] = inc.loc['Net Income'][0] / bs.loc['Stockholders Equity'][0]
         except: pass
         try: size[t] = latest[t] * info['sharesOutstanding']
         except: pass
-    df = pd.DataFrame({
+    return pd.DataFrame({
         'momentum': zscore(pd.Series(mom)),
         'value': zscore(pd.Series(val), inverse=True),
         'quality': zscore(pd.Series(qual)),
         'size': zscore(pd.Series(size), inverse=True)
-    })
-    return df.dropna(how='all')
+    }).dropna(how='all')
 
+# -- Covariance matrix --
 def cov_matrix(returns, method='ledoit'):
     return LedoitWolf().fit(returns).covariance_ if method == 'ledoit' else returns.cov().values
 
+# -- Optimization --
 def optimize(prices, cov, scores, weights, sectors=None, cons=None):
     n = len(scores)
     expected = scores.values
@@ -114,6 +118,7 @@ def optimize(prices, cov, scores, weights, sectors=None, cons=None):
     total = sum(w.values())
     return {k: v / total for k, v in w.items()}
 
+# -- Backtesting --
 def backtest(prices, weights_hist, rebalance_dates):
     ret = prices.pct_change().dropna()
     port = pd.Series(0, index=ret.index)
@@ -132,7 +137,7 @@ def backtest(prices, weights_hist, rebalance_dates):
     }
     return port, cum, metrics
 
-# ----- Streamlit UI -----
+# ----- Streamlit App Layout -----
 tab1, tab2, tab3 = st.tabs(["Performance", "Factors", "Holdings"])
 with st.sidebar:
     st.subheader("Configuration")
@@ -160,12 +165,10 @@ with st.sidebar:
 
 if run:
     prices, funds = get_data(tickers, sd, ed)
-    df = factors(prices, funds, tickers)
+    df = factors(prices, funds, prices.columns.tolist())
     rebal_dates = [prices.index[prices.index >= d][0] for d in pd.date_range(sd, ed, freq=pd.DateOffset(months=freq)) if any(prices.index >= d)]
     sector_data = load_sp500().set_index('ticker') if uni == "S&P 500" else None
-    weights_hist = {d: optimize(prices.loc[:d], cov_matrix(prices.loc[:d].pct_change().dropna()),
-                                df.loc[df.index.intersection(tickers)], wts, sector_data, cons)
-                    for d in rebal_dates}
+    weights_hist = {d: optimize(prices.loc[:d], cov_matrix(prices.loc[:d].pct_change().dropna()), df.loc[df.index.intersection(tickers)], wts, sector_data, cons) for d in rebal_dates}
     port_ret, port_cum, metrics = backtest(prices, weights_hist, rebal_dates)
 
     with tab1:
@@ -180,8 +183,7 @@ if run:
     with tab2:
         st.subheader("Final Factor Exposures")
         latest_weights = weights_hist[max(weights_hist.keys())]
-        exposures = {k: sum(latest_weights.get(t, 0) * v for t, v in df[k].items() if t in latest_weights)
-                     for k in ['value', 'momentum', 'quality', 'size']}
+        exposures = {k: sum(latest_weights.get(t, 0) * v for t, v in df[k].items() if t in latest_weights) for k in ['value', 'momentum', 'quality', 'size']}
         st.bar_chart(pd.Series(exposures))
 
     with tab3:
