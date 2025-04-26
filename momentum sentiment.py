@@ -28,16 +28,28 @@ if data.empty:
     st.error("No data retrieved. Please check your ticker symbols and date range.")
     st.stop()
 
-# Handle both single and multiple tickers
+# Try to access 'Adj Close', fall back to 'Close'
 try:
     if isinstance(data.columns, pd.MultiIndex):
-        data = data['Adj Close']
+        if 'Adj Close' in data.columns.levels[0]:
+            data = data['Adj Close']
+        elif 'Close' in data.columns.levels[0]:
+            st.warning("Using 'Close' instead of 'Adj Close' as fallback.")
+            data = data['Close']
+        else:
+            st.error("Neither 'Adj Close' nor 'Close' found in the data.")
+            st.stop()
     else:
-        if 'Adj Close' not in data.columns:
-            st.error("'Adj Close' not found. Please check the ticker symbols.")
+        if 'Adj Close' in data.columns:
+            data = data['Adj Close'].to_frame()
+        elif 'Close' in data.columns:
+            st.warning("Using 'Close' instead of 'Adj Close' as fallback.")
+            data = data['Close'].to_frame()
+        else:
+            st.error("'Adj Close' or 'Close' not found in single ticker data.")
             st.stop()
 except Exception as e:
-    st.error(f"Unexpected error extracting 'Adj Close': {str(e)}")
+    st.error(f"Unexpected error selecting price data: {str(e)}")
     st.stop()
 
 returns = data.pct_change().dropna()
