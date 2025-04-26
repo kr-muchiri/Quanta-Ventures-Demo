@@ -20,6 +20,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ----- Utility Functions -----
+# ----- Utility Functions -----
 @st.cache_data(ttl=86400)
 def load_sp500():
     try:
@@ -34,10 +35,12 @@ def get_data(tickers, start, end):
     if data.empty:
         st.error("No data was returned. Please check the tickers or your internet connection.")
         st.stop()
-    if isinstance(data.columns, pd.MultiIndex):
-        adj_close = data['Adj Close']
-    else:
-        adj_close = data
+    # Handle both single-level and multi-level column structures
+    try:
+        adj_close = data['Adj Close'] if isinstance(data.columns, pd.MultiIndex) else data
+    except KeyError:
+        st.error("'Adj Close' column not found. Please verify the ticker symbols are correct.")
+        st.stop()
     fundamentals = {t: yf.Ticker(t) for t in tickers}
     return adj_close, fundamentals
 
