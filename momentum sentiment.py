@@ -64,20 +64,20 @@ def portfolio_performance(weights, mean_returns, cov_matrix):
     returns = np.dot(weights, mean_returns) * 252
     std_dev = np.sqrt(np.dot(weights.T, np.dot(cov_matrix, weights))) * np.sqrt(252)
     sharpe_ratio = returns / std_dev
-    return returns, std_dev, sharpe_ratio
+    diversity_penalty = np.sum(weights**2)  # Encourage diversification
+    penalty_factor = 0.1  # adjust to control strength of penalty
+    return returns, std_dev, sharpe_ratio - penalty_factor * diversity_penalty
 
-def negative_sharpe(weights, mean_returns, cov_matrix):
+def negative_objective(weights, mean_returns, cov_matrix):
     return -portfolio_performance(weights, mean_returns, cov_matrix)[2]
 
-# Smarter bounds and initial weights
+# Initial weights and bounds
 initial_weights = np.array([1. / num_assets] * num_assets)
-
-# Enforce bounds only to avoid 0/1 extremes but allow flexibility
-bounds = tuple((0.01, 0.9) for _ in range(num_assets))
+bounds = tuple((0, 1) for _ in range(num_assets))
 constraints = ({'type': 'eq', 'fun': lambda x: np.sum(x) - 1})
 
 # Optimize
-opt_result = minimize(negative_sharpe, initial_weights,
+opt_result = minimize(negative_objective, initial_weights,
                       args=(mean_returns, cov_matrix),
                       method='SLSQP', bounds=bounds, constraints=constraints)
 opt_weights = opt_result.x
@@ -88,7 +88,7 @@ ret, vol, sharpe = portfolio_performance(opt_weights, mean_returns, cov_matrix)
 st.subheader("📈 Optimization Results")
 st.markdown(f"**Expected Annual Return:** {ret:.2%}")
 st.markdown(f"**Annual Volatility:** {vol:.2%}")
-st.markdown(f"**Sharpe Ratio:** {sharpe:.2f}")
+st.markdown(f"**Sharpe Ratio (with diversification penalty):** {sharpe:.2f}")
 
 # Display weights
 st.subheader("🔍 Optimal Portfolio Weights")
