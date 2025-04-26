@@ -30,9 +30,16 @@ def load_sp500():
 
 @st.cache_data(ttl=86400)
 def get_data(tickers, start, end):
-    prices = yf.download(tickers, start=start, end=end, progress=False)['Adj Close']
+    data = yf.download(tickers, start=start, end=end, progress=False)
+    if data.empty:
+        st.error("No data was returned. Please check the tickers or your internet connection.")
+        st.stop()
+    if isinstance(data.columns, pd.MultiIndex):
+        adj_close = data['Adj Close']
+    else:
+        adj_close = data
     fundamentals = {t: yf.Ticker(t) for t in tickers}
-    return prices, fundamentals
+    return adj_close, fundamentals
 
 def zscore(series, inverse=False):
     mean, std = series.mean(), series.std()
@@ -40,7 +47,6 @@ def zscore(series, inverse=False):
 
 def factors(prices, funds, tickers):
     latest = prices.iloc[-1]
-    ret = prices.pct_change().dropna()
     mom = {t: (latest[t] / prices[t].iloc[0] - 1) for t in tickers if t in prices}
     val, qual, size = {}, {}, {}
     for t in tickers:
