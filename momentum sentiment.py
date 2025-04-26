@@ -8,7 +8,14 @@ import matplotlib.pyplot as plt
 from scipy.optimize import minimize
 
 st.set_page_config(page_title="Portfolio Optimizer", layout="centered")
-st.title("📊 Portfolio Optimization App")
+
+# Custom styled header
+st.markdown("""
+<div style='background-color:#0E1117; padding: 1rem; border-radius: 10px;'>
+    <h1 style='color:#FAFAFA;'>🧠 Portfolio Optimizer</h1>
+    <p style='color:#CCCCCC;'>Use quantitative methods to create optimized portfolios based on Sharpe Ratio or Minimum Variance. Designed for aspiring quants & data-driven investors.</p>
+</div>
+""", unsafe_allow_html=True)
 
 # Sidebar inputs
 st.sidebar.header("Configuration")
@@ -123,3 +130,28 @@ fig, ax = plt.subplots()
 ax.pie(opt_weights[nonzero_weights], labels=np.array(tickers)[nonzero_weights], autopct='%1.1f%%', startangle=140)
 ax.set_title("Optimized Portfolio Allocation")
 st.pyplot(fig)
+
+# Historical backtest chart
+st.subheader("📊 Historical Portfolio Performance")
+portfolio_returns = (returns * opt_weights).sum(axis=1)
+cumulative_returns = (1 + portfolio_returns).cumprod()
+fig2, ax2 = plt.subplots()
+ax2.plot(cumulative_returns, label='Optimized Portfolio')
+ax2.set_title("Cumulative Returns Over Time")
+ax2.set_ylabel("Portfolio Value")
+ax2.grid(True)
+ax2.legend()
+st.pyplot(fig2)
+
+# Value at Risk
+var_95 = np.percentile(portfolio_returns, 5)
+st.markdown(f"**1-Day 95% Value-at-Risk (VaR):** {var_95:.2%}")
+
+# Download button
+csv = weight_df.to_csv(index=False).encode("utf-8")
+st.download_button(
+    label="📥 Download Portfolio Weights (CSV)",
+    data=csv,
+    file_name="optimized_portfolio.csv",
+    mime="text/csv"
+)
