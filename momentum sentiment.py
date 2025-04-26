@@ -69,9 +69,12 @@ def portfolio_performance(weights, mean_returns, cov_matrix):
 def negative_sharpe(weights, mean_returns, cov_matrix):
     return -portfolio_performance(weights, mean_returns, cov_matrix)[2]
 
+# Smarter bounds and initial weights
+initial_weights = np.array([1. / num_assets] * num_assets)
+
+# Enforce bounds only to avoid 0/1 extremes but allow flexibility
+bounds = tuple((0.01, 0.9) for _ in range(num_assets))
 constraints = ({'type': 'eq', 'fun': lambda x: np.sum(x) - 1})
-bounds = tuple((0, 1) for _ in range(num_assets))
-initial_weights = num_assets * [1. / num_assets]
 
 # Optimize
 opt_result = minimize(negative_sharpe, initial_weights,
