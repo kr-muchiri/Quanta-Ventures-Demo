@@ -76,6 +76,14 @@ def max_sharpe_objective(weights, mean_returns, cov_matrix):
 def min_variance_objective(weights, mean_returns, cov_matrix):
     return weights.T @ cov_matrix @ weights
 
+# Additional penalty to reduce concentration for min variance
+penalty_factor = 10
+
+def min_variance_with_penalty(weights, mean_returns, cov_matrix):
+    variance = weights.T @ cov_matrix @ weights
+    diversity_penalty = np.sum(weights**3)
+    return variance + penalty_factor * diversity_penalty
+
 # Constraints and bounds
 initial_weights = np.array([1. / num_assets] * num_assets)
 bounds = tuple((0, 1) for _ in range(num_assets))
@@ -83,7 +91,7 @@ constraints = ({'type': 'eq', 'fun': lambda x: np.sum(x) - 1})
 
 # Optimization
 if opt_mode == "Minimum Variance":
-    result = minimize(min_variance_objective, initial_weights,
+    result = minimize(min_variance_with_penalty, initial_weights,
                       args=(mean_returns, cov_matrix),
                       method='SLSQP', bounds=bounds, constraints=constraints)
 else:
@@ -99,7 +107,7 @@ st.subheader("📈 Optimization Results")
 st.markdown(f"**Expected Annual Return:** {ret:.2%}")
 st.markdown(f"**Annual Volatility:** {vol:.2%}")
 if opt_mode == "Minimum Variance":
-    st.markdown("**Objective: Minimize portfolio risk**")
+    st.markdown(f"**Variance + Penalty Objective Value:** {min_variance_with_penalty(opt_weights, mean_returns, cov_matrix):.6f}")
 else:
     st.markdown(f"**Sharpe Ratio (adjusted for balance and concentration):** {score:.2f}")
 
