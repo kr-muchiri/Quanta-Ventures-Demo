@@ -5,6 +5,7 @@ import yfinance as yf
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import seaborn as sns
 from scipy.optimize import minimize
 
 st.set_page_config(page_title="Portfolio Optimizer", layout="centered")
@@ -83,7 +84,6 @@ def max_sharpe_objective(weights, mean_returns, cov_matrix):
 def min_variance_objective(weights, mean_returns, cov_matrix):
     return weights.T @ cov_matrix @ weights
 
-# Additional penalty to reduce concentration for min variance
 penalty_factor = 10
 
 def min_variance_with_penalty(weights, mean_returns, cov_matrix):
@@ -91,12 +91,10 @@ def min_variance_with_penalty(weights, mean_returns, cov_matrix):
     diversity_penalty = np.sum(weights**3)
     return variance + penalty_factor * diversity_penalty
 
-# Constraints and bounds
 initial_weights = np.array([1. / num_assets] * num_assets)
 bounds = tuple((0, 1) for _ in range(num_assets))
 constraints = ({'type': 'eq', 'fun': lambda x: np.sum(x) - 1})
 
-# Optimization
 if opt_mode == "Minimum Variance":
     result = minimize(min_variance_with_penalty, initial_weights,
                       args=(mean_returns, cov_matrix),
@@ -109,7 +107,6 @@ else:
 opt_weights = np.round(result.x, 6)
 ret, vol, score = portfolio_performance(opt_weights, mean_returns, cov_matrix)
 
-# Results
 st.subheader("📈 Optimization Results")
 st.markdown(f"**Expected Annual Return:** {ret:.2%}")
 st.markdown(f"**Annual Volatility:** {vol:.2%}")
@@ -118,20 +115,17 @@ if opt_mode == "Minimum Variance":
 else:
     st.markdown(f"**Sharpe Ratio (adjusted for balance and concentration):** {score:.2f}")
 
-# Display weights
 st.subheader("🔍 Optimal Portfolio Weights")
 weight_df = pd.DataFrame({"Ticker": tickers, "Weight": opt_weights})
 weight_df["Weight"] = weight_df["Weight"] * 100
 st.dataframe(weight_df[weight_df["Weight"] > 0.01].sort_values("Weight", ascending=False).reset_index(drop=True))
 
-# Pie chart
-nonzero_weights = opt_weights > 0.01
 fig, ax = plt.subplots()
+nonzero_weights = opt_weights > 0.01
 ax.pie(opt_weights[nonzero_weights], labels=np.array(tickers)[nonzero_weights], autopct='%1.1f%%', startangle=140)
 ax.set_title("Optimized Portfolio Allocation")
 st.pyplot(fig)
 
-# Historical backtest chart
 st.subheader("📊 Historical Portfolio Performance")
 portfolio_returns = (returns * opt_weights).sum(axis=1)
 cumulative_returns = (1 + portfolio_returns).cumprod()
@@ -143,11 +137,42 @@ ax2.grid(True)
 ax2.legend()
 st.pyplot(fig2)
 
-# Value at Risk
 var_95 = np.percentile(portfolio_returns, 5)
 st.markdown(f"**1-Day 95% Value-at-Risk (VaR):** {var_95:.2%}")
 
-# Download button
+st.subheader("🔗 Asset Correlation Heatmap")
+fig3, ax3 = plt.subplots()
+sns.heatmap(returns.corr(), annot=True, cmap='coolwarm', fmt=".2f", ax=ax3)
+ax3.set_title("Correlation Between Assets")
+st.pyplot(fig3)
+
+# Monte Carlo Simulation and Efficient Frontier
+st.subheader("🌀 Monte Carlo Simulated Portfolios")
+n_sim = 5000
+all_weights = np.zeros((n_sim, num_assets))
+ret_arr = np.zeros(n_sim)
+vol_arr = np.zeros(n_sim)
+sharpe_arr = np.zeros(n_sim)
+
+for i in range(n_sim):
+    weights = np.random.random(num_assets)
+    weights /= np.sum(weights)
+    all_weights[i, :] = weights
+    ret_arr[i] = np.dot(weights, mean_returns) * 252
+    vol_arr[i] = np.sqrt(weights.T @ cov_matrix @ weights) * np.sqrt(252)
+    sharpe_arr[i] = (ret_arr[i]) / vol_arr[i]
+
+fig4, ax4 = plt.subplots()
+sc = ax4.scatter(vol_arr, ret_arr, c=sharpe_arr, cmap='viridis', alpha=0.5)
+ax4.scatter(vol, ret, c='red', s=60, edgecolors='black', label='Optimized')
+ax4.set_xlabel('Volatility')
+ax4.set_ylabel('Expected Return')
+ax4.set_title('Efficient Frontier & Simulated Portfolios')
+ax4.grid(True)
+fig4.colorbar(sc, label='Sharpe Ratio')
+ax4.legend()
+st.pyplot(fig4)
+
 csv = weight_df.to_csv(index=False).encode("utf-8")
 st.download_button(
     label="📥 Download Portfolio Weights (CSV)",
