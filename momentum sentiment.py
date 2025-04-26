@@ -8,7 +8,6 @@ import pandas as pd
 import yfinance as yf
 import matplotlib.pyplot as plt
 import streamlit as st
-import plotly.express as px
 from scipy.optimize import minimize
 from sklearn.covariance import LedoitWolf
 from datetime import datetime, timedelta
@@ -547,30 +546,29 @@ if run_backtest:
                 'S&P 500': benchmark_cumulative.reindex(portfolio_cumulative.index)
             })
             
-            fig = px.line(chart_data)
-            fig.update_layout(
-                xaxis_title="Date",
-                yaxis_title="Cumulative Return",
-                legend_title="",
-                hovermode="x unified"
-            )
-            st.plotly_chart(fig, use_container_width=True)
+            # Using matplotlib instead of plotly
+            fig, ax = plt.subplots(figsize=(10, 6))
+            chart_data.plot(ax=ax)
+            ax.set_title('Cumulative Returns')
+            ax.set_xlabel('Date')
+            ax.set_ylabel('Value')
+            ax.grid(True)
+            ax.legend()
+            st.pyplot(fig)
             
             # Drawdown chart
             st.subheader("Portfolio Drawdown")
             drawdown = ((portfolio_cumulative / portfolio_cumulative.cummax()) - 1) * 100
             
-            fig = px.area(
-                drawdown,
-                color_discrete_sequence=['rgba(239, 85, 59, 0.7)']
-            )
-            fig.update_layout(
-                xaxis_title="Date",
-                yaxis_title="Drawdown (%)",
-                showlegend=False,
-                yaxis=dict(autorange="reversed")
-            )
-            st.plotly_chart(fig, use_container_width=True)
+            fig, ax = plt.subplots(figsize=(10, 6))
+            drawdown.plot(ax=ax, color='red', alpha=0.7, linewidth=2)
+            ax.fill_between(drawdown.index, drawdown, 0, color='red', alpha=0.3)
+            ax.set_title('Portfolio Drawdown')
+            ax.set_xlabel('Date')
+            ax.set_ylabel('Drawdown (%)')
+            ax.grid(True)
+            ax.invert_yaxis()  # Invert y-axis to show drawdowns as negative
+            st.pyplot(fig)
         
         with tab2:
             st.subheader("Factor Analysis")
@@ -598,15 +596,16 @@ if run_backtest:
                 'Exposure': list(factor_exposures.values())
             })
             
-            fig = px.bar(
-                exposures_df,
-                x='Factor',
-                y='Exposure',
-                color='Exposure',
-                color_continuous_scale='RdBu'
-            )
-            fig.update_layout(xaxis_title="", yaxis_title="Factor Exposure (Z-Score)")
-            st.plotly_chart(fig, use_container_width=True)
+            # Using matplotlib for bar chart
+            fig, ax = plt.subplots(figsize=(10, 6))
+            ax.bar(exposures_df['Factor'], exposures_df['Exposure'], 
+                  color=['royalblue' if x > 0 else 'tomato' for x in exposures_df['Exposure']])
+            ax.set_title('Factor Exposures')
+            ax.set_ylabel('Factor Exposure (Z-Score)')
+            ax.grid(axis='y', linestyle='--', alpha=0.7)
+            for i, v in enumerate(exposures_df['Exposure']):
+                ax.text(i, v + 0.05 * np.sign(v), f"{v:.2f}", ha='center')
+            st.pyplot(fig)
         
         with tab3:
             st.subheader("Portfolio Holdings")
@@ -627,15 +626,16 @@ if run_backtest:
             
             top_10 = weights_df.head(10).copy()
             
-            fig = px.bar(
-                top_10,
-                x='Ticker',
-                y='Weight (%)',
-                color='Weight (%)',
-                color_continuous_scale='Blues'
-            )
-            fig.update_layout(showlegend=False, xaxis_title="", yaxis_title="Weight (%)")
-            st.plotly_chart(fig, use_container_width=True)
+            # Using matplotlib for bar chart
+            fig, ax = plt.subplots(figsize=(10, 6))
+            ax.bar(top_10['Ticker'], top_10['Weight (%)'], color='steelblue')
+            ax.set_title('Top 10 Holdings')
+            ax.set_ylabel('Weight (%)')
+            ax.set_xlabel('Ticker')
+            ax.grid(axis='y', linestyle='--', alpha=0.7)
+            for i, v in enumerate(top_10['Weight (%)']):
+                ax.text(i, v + 0.5, f"{v:.1f}%", ha='center')
+            st.pyplot(fig)
             
             # Show all holdings
             if sector_data is not None:
@@ -649,13 +649,12 @@ if run_backtest:
                 
                 sector_weights = weights_with_sectors.groupby('Sector')['Weight'].sum()
                 
-                fig = px.pie(
-                    values=sector_weights.values,
-                    names=sector_weights.index,
-                    hole=0.4
-                )
-                fig.update_traces(textposition='inside', textinfo='percent+label')
-                st.plotly_chart(fig, use_container_width=True)
+                # Using matplotlib for pie chart
+                fig, ax = plt.subplots(figsize=(10, 10))
+                ax.pie(sector_weights.values, labels=sector_weights.index, autopct='%1.1f%%', 
+                      textprops={'fontsize': 12})
+                ax.set_title('Sector Allocation')
+                st.pyplot(fig)
                 
                 # Display all holdings with sectors
                 st.dataframe(
