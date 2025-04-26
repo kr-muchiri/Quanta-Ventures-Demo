@@ -16,6 +16,7 @@ tickers = st.sidebar.text_input("Enter tickers (comma separated)", "AAPL,MSFT,GO
 tickers = [t.strip().upper() for t in tickers.split(',') if t.strip()]
 start_date = st.sidebar.date_input("Start Date", pd.to_datetime('2022-01-01'))
 end_date = st.sidebar.date_input("End Date", pd.to_datetime('2024-01-01'))
+opt_mode = st.sidebar.selectbox("Optimization Objective", ["Max Sharpe Ratio", "Minimum Variance"])
 
 if len(tickers) < 2:
     st.warning("Please enter at least two tickers.")
@@ -59,36 +60,48 @@ mean_returns = returns.mean()
 cov_matrix = returns.cov()
 num_assets = len(tickers)
 
-# Portfolio performance metrics
-def portfolio_performance(weights, mean_returns, cov_matrix):
-    returns = np.dot(weights, mean_returns) * 252
-    std_dev = np.sqrt(np.dot(weights.T, np.dot(cov_matrix, weights))) * np.sqrt(252)
-    sharpe_ratio = returns / std_dev
-    diversity_penalty = np.sum(weights**2)  # Encourage diversification
-    penalty_factor = 0.1  # adjust to control strength of penalty
-    return returns, std_dev, sharpe_ratio - penalty_factor * diversity_penalty
+# Objective Functions
+def portfolio_performance(weights, mean_returns, cov_matrix, risk_free_rate=0):
+    annual_return = np.dot(weights, mean_returns) * 252
+    annual_volatility = np.sqrt(weights.T @ cov_matrix @ weights) * np.sqrt(252)
+    sharpe_ratio = (annual_return - risk_free_rate) / annual_volatility
+    balance_penalty = np.var(weights)
+    concentration_penalty = np.sum(weights**3)
+    score = sharpe_ratio - 0.2 * balance_penalty - 0.1 * concentration_penalty
+    return annual_return, annual_volatility, score
 
-def negative_objective(weights, mean_returns, cov_matrix):
+def max_sharpe_objective(weights, mean_returns, cov_matrix):
     return -portfolio_performance(weights, mean_returns, cov_matrix)[2]
 
-# Initial weights and bounds
+def min_variance_objective(weights, mean_returns, cov_matrix):
+    return weights.T @ cov_matrix @ weights
+
+# Constraints and bounds
 initial_weights = np.array([1. / num_assets] * num_assets)
 bounds = tuple((0, 1) for _ in range(num_assets))
 constraints = ({'type': 'eq', 'fun': lambda x: np.sum(x) - 1})
 
-# Optimize
-opt_result = minimize(negative_objective, initial_weights,
+# Optimization
+if opt_mode == "Minimum Variance":
+    result = minimize(min_variance_objective, initial_weights,
                       args=(mean_returns, cov_matrix),
                       method='SLSQP', bounds=bounds, constraints=constraints)
-opt_weights = opt_result.x
-opt_weights = np.round(opt_weights, 6)
-ret, vol, sharpe = portfolio_performance(opt_weights, mean_returns, cov_matrix)
+else:
+    result = minimize(max_sharpe_objective, initial_weights,
+                      args=(mean_returns, cov_matrix),
+                      method='SLSQP', bounds=bounds, constraints=constraints)
+
+opt_weights = np.round(result.x, 6)
+ret, vol, score = portfolio_performance(opt_weights, mean_returns, cov_matrix)
 
 # Results
 st.subheader("📈 Optimization Results")
 st.markdown(f"**Expected Annual Return:** {ret:.2%}")
 st.markdown(f"**Annual Volatility:** {vol:.2%}")
-st.markdown(f"**Sharpe Ratio (with diversification penalty):** {sharpe:.2f}")
+if opt_mode == "Minimum Variance":
+    st.markdown("**Objective: Minimize portfolio risk**")
+else:
+    st.markdown(f"**Sharpe Ratio (adjusted for balance and concentration):** {score:.2f}")
 
 # Display weights
 st.subheader("🔍 Optimal Portfolio Weights")
