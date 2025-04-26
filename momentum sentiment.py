@@ -41,10 +41,10 @@ try:
             st.stop()
     else:
         if 'Adj Close' in data.columns:
-            data = data['Adj Close'].to_frame()
+            data = data[['Adj Close']]
         elif 'Close' in data.columns:
             st.warning("Using 'Close' instead of 'Adj Close' as fallback.")
-            data = data['Close'].to_frame()
+            data = data[['Close']]
         else:
             st.error("'Adj Close' or 'Close' not found in single ticker data.")
             st.stop()
@@ -78,6 +78,7 @@ opt_result = minimize(negative_sharpe, initial_weights,
                       args=(mean_returns, cov_matrix),
                       method='SLSQP', bounds=bounds, constraints=constraints)
 opt_weights = opt_result.x
+opt_weights = np.round(opt_weights, 6)
 ret, vol, sharpe = portfolio_performance(opt_weights, mean_returns, cov_matrix)
 
 # Results
@@ -90,10 +91,11 @@ st.markdown(f"**Sharpe Ratio:** {sharpe:.2f}")
 st.subheader("🔍 Optimal Portfolio Weights")
 weight_df = pd.DataFrame({"Ticker": tickers, "Weight": opt_weights})
 weight_df["Weight"] = weight_df["Weight"] * 100
-st.dataframe(weight_df.sort_values("Weight", ascending=False).reset_index(drop=True))
+st.dataframe(weight_df[weight_df["Weight"] > 0.01].sort_values("Weight", ascending=False).reset_index(drop=True))
 
 # Pie chart
+nonzero_weights = opt_weights > 0.01
 fig, ax = plt.subplots()
-ax.pie(opt_weights, labels=tickers, autopct='%1.1f%%', startangle=140)
+ax.pie(opt_weights[nonzero_weights], labels=np.array(tickers)[nonzero_weights], autopct='%1.1f%%', startangle=140)
 ax.set_title("Optimized Portfolio Allocation")
 st.pyplot(fig)
