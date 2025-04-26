@@ -48,16 +48,17 @@ def get_data(tickers, start, end):
         st.error("None of the tickers returned data. Please check your list.")
         st.stop()
 
-    data = yf.download(valid_tickers, start=start, end=end, progress=False)
+    data = yf.download(valid_tickers, start=start, end=end, progress=False, group_by="ticker")
     if data.empty:
         st.error("No data was returned. Please check the tickers or your internet connection.")
         st.stop()
 
+    # Reconstruct 'Adj Close' manually if needed
     if isinstance(data.columns, pd.MultiIndex):
-        if 'Adj Close' in data.columns.levels[0]:
-            adj_close = data['Adj Close']
-        else:
-            st.error("'Adj Close' not found in multi-index Yahoo Finance data.")
+        try:
+            adj_close = pd.concat({ticker: data[ticker]['Adj Close'] for ticker in valid_tickers if 'Adj Close' in data[ticker]}, axis=1)
+        except Exception as e:
+            st.error("Couldn't extract 'Adj Close' from downloaded data.")
             st.stop()
     else:
         adj_close = data
@@ -67,6 +68,7 @@ def get_data(tickers, start, end):
 
     fundamentals = {t: yf.Ticker(t) for t in valid_tickers}
     return adj_close, fundamentals
+
 
 def zscore(series, inverse=False):
     mean, std = series.mean(), series.std()
