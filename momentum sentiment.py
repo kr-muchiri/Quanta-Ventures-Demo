@@ -20,7 +20,6 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ----- Utility Functions -----
-# ----- Utility Functions -----
 @st.cache_data(ttl=86400)
 def load_sp500():
     try:
@@ -29,19 +28,44 @@ def load_sp500():
     except:
         return pd.DataFrame([('AAPL', 'Technology'), ('MSFT', 'Technology')], columns=['ticker', 'sector'])
 
+def validate_tickers(tickers):
+    valid = []
+    for t in tickers:
+        try:
+            hist = yf.Ticker(t).history(period='5d')
+            if not hist.empty:
+                valid.append(t)
+        except:
+            continue
+    return valid
+
 @st.cache_data(ttl=86400)
 def get_data(tickers, start, end):
-    data = yf.download(tickers, start=start, end=end, progress=False)
+    valid_tickers = validate_tickers(tickers)
+    invalid_tickers = set(tickers) - set(valid_tickers)
+
+    if not valid_tickers:
+        st.error("None of the tickers returned data. Please check your list.")
+        st.stop()
+
+    data = yf.download(valid_tickers, start=start, end=end, progress=False)
     if data.empty:
         st.error("No data was returned. Please check the tickers or your internet connection.")
         st.stop()
-    # Handle both single-level and multi-level column structures
-    try:
-        adj_close = data['Adj Close'] if isinstance(data.columns, pd.MultiIndex) else data
-    except KeyError:
-        st.error("'Adj Close' column not found. Please verify the ticker symbols are correct.")
-        st.stop()
-    fundamentals = {t: yf.Ticker(t) for t in tickers}
+
+    if isinstance(data.columns, pd.MultiIndex):
+        if 'Adj Close' in data.columns.levels[0]:
+            adj_close = data['Adj Close']
+        else:
+            st.error("'Adj Close' not found in multi-index Yahoo Finance data.")
+            st.stop()
+    else:
+        adj_close = data
+
+    if invalid_tickers:
+        st.warning(f"The following tickers were skipped due to missing data: {', '.join(invalid_tickers)}")
+
+    fundamentals = {t: yf.Ticker(t) for t in valid_tickers}
     return adj_close, fundamentals
 
 def zscore(series, inverse=False):
