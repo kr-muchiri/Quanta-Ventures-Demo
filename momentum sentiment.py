@@ -244,6 +244,10 @@ def analyze_optimized_portfolio(price_data, opt_weights, benchmark=None):
         portfolio_returns = np.dot(returns, opt_weights)
         benchmark_returns = None
     
+    # Convert to series if it's not already
+    if not isinstance(portfolio_returns, pd.Series):
+        portfolio_returns = pd.Series(portfolio_returns, index=returns.index)
+    
     # Calculate cumulative returns
     portfolio_cumulative = (1 + portfolio_returns).cumprod()
     if benchmark_returns is not None:
@@ -251,27 +255,43 @@ def analyze_optimized_portfolio(price_data, opt_weights, benchmark=None):
     else:
         benchmark_cumulative = None
     
-    # Calculate drawdowns
-    portfolio_peak = portfolio_cumulative.cummax()
-    portfolio_drawdown = (portfolio_cumulative - portfolio_peak) / portfolio_peak
+    # Calculate drawdowns - with error handling
+    try:
+        portfolio_peak = portfolio_cumulative.expanding().max()
+        portfolio_drawdown = (portfolio_cumulative - portfolio_peak) / portfolio_peak
+    except Exception as e:
+        st.warning(f"Could not calculate drawdown: {str(e)}")
+        portfolio_drawdown = pd.Series(0, index=portfolio_cumulative.index)
     
     # Calculate rolling metrics (1-year window)
     window = min(252, len(portfolio_returns) // 2)  # Use window of 252 days or half the data, whichever is smaller
-    if len(portfolio_returns) > window:
-        rolling_vol = portfolio_returns.rolling(window=window).std() * np.sqrt(252)
-        rolling_ret = portfolio_returns.rolling(window=window).mean() * 252
-        rolling_sharpe = rolling_ret / rolling_vol
-    else:
+    
+    try:
+        if len(portfolio_returns) > window:
+            rolling_vol = portfolio_returns.rolling(window=window).std() * np.sqrt(252)
+            rolling_ret = portfolio_returns.rolling(window=window).mean() * 252
+            rolling_sharpe = rolling_ret / rolling_vol
+        else:
+            rolling_vol = rolling_ret = rolling_sharpe = None
+    except Exception as e:
+        st.warning(f"Could not calculate rolling metrics: {str(e)}")
         rolling_vol = rolling_ret = rolling_sharpe = None
     
     # Calculate Value at Risk and Conditional Value at Risk
-    var_95 = np.percentile(portfolio_returns, 5)
-    cvar_95 = portfolio_returns[portfolio_returns <= var_95].mean()
+    try:
+        var_95 = np.percentile(portfolio_returns, 5)
+        cvar_95 = portfolio_returns[portfolio_returns <= var_95].mean()
+    except Exception as e:
+        st.warning(f"Could not calculate VaR/CVaR: {str(e)}")
+        var_95 = cvar_95 = 0
     
     # Calculate correlation with benchmark
     correlation_with_benchmark = None
     if benchmark_returns is not None:
-        correlation_with_benchmark = np.corrcoef(portfolio_returns, benchmark_returns)[0, 1]
+        try:
+            correlation_with_benchmark = np.corrcoef(portfolio_returns, benchmark_returns)[0, 1]
+        except Exception as e:
+            st.warning(f"Could not calculate correlation with benchmark: {str(e)}")
     
     return {
         'returns': portfolio_returns,
