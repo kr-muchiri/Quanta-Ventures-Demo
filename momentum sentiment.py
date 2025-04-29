@@ -309,39 +309,79 @@ def analyze_optimized_portfolio(price_data, opt_weights, benchmark=None):
 
 def plot_portfolio_weights(tickers, weights, title="Portfolio Allocation"):
     """Create pie chart for portfolio weights"""
+    # Handle case where lengths don't match
+    if len(tickers) != len(weights):
+        st.warning(f"Length mismatch: {len(tickers)} tickers but {len(weights)} weights")
+        # Use the shorter length
+        min_len = min(len(tickers), len(weights))
+        tickers = tickers[:min_len]
+        weights = weights[:min_len]
+    
+    # Make sure weights is a numpy array
+    weights = np.array(weights)
+    
     # Filter out negligible weights for cleaner chart
     threshold = 0.01
     nonzero_indices = weights > threshold
-    filtered_tickers = np.array(tickers)[nonzero_indices]
-    filtered_weights = weights[nonzero_indices]
     
-    # If all weights are below threshold, show the top 5
+    # Error check before indexing
+    if len(nonzero_indices) == 0:
+        st.warning("No weights above threshold found")
+        # Show all weights instead
+        filtered_tickers = tickers
+        filtered_weights = weights
+    else:
+        try:
+            filtered_tickers = np.array(tickers)[nonzero_indices]
+            filtered_weights = weights[nonzero_indices]
+        except IndexError:
+            # Fallback if indexing fails
+            st.warning("Error filtering weights. Showing all weights instead.")
+            filtered_tickers = tickers
+            filtered_weights = weights
+    
+    # If all weights are below threshold or we have no values, show the top 5
     if len(filtered_tickers) == 0:
-        top_indices = np.argsort(weights)[-5:]
-        filtered_tickers = np.array(tickers)[top_indices]
-        filtered_weights = weights[top_indices]
+        try:
+            # Get top 5 weights by value
+            top_indices = np.argsort(weights)[-5:]
+            filtered_tickers = np.array(tickers)[top_indices]
+            filtered_weights = weights[top_indices]
+        except IndexError:
+            # Last resort fallback
+            st.error("Unable to process weights for visualization")
+            # Create a dummy chart
+            filtered_tickers = ["Error"]
+            filtered_weights = [1.0]
     
+    # Create the plot
     fig, ax = plt.subplots(figsize=(10, 7))
     
     # Use a visually appealing color scheme
     cmap = plt.cm.get_cmap('tab20')
     colors = [cmap(i % 20) for i in range(len(filtered_tickers))]
     
-    wedges, texts, autotexts = ax.pie(
-        filtered_weights, 
-        labels=filtered_tickers, 
-        autopct='%1.1f%%', 
-        startangle=140, 
-        colors=colors,
-        wedgeprops={'edgecolor': 'white', 'linewidth': 1}
-    )
-    
-    # Styling for better readability
-    for text in texts:
-        text.set_fontsize(10)
-    for autotext in autotexts:
-        autotext.set_fontsize(9)
-        autotext.set_color('white')
+    # Create the pie chart with error handling
+    try:
+        wedges, texts, autotexts = ax.pie(
+            filtered_weights, 
+            labels=filtered_tickers, 
+            autopct='%1.1f%%', 
+            startangle=140, 
+            colors=colors,
+            wedgeprops={'edgecolor': 'white', 'linewidth': 1}
+        )
+        
+        # Styling for better readability
+        for text in texts:
+            text.set_fontsize(10)
+        for autotext in autotexts:
+            autotext.set_fontsize(9)
+            autotext.set_color('white')
+    except Exception as e:
+        # If pie chart fails, create a simple placeholder
+        st.error(f"Error creating pie chart: {str(e)}")
+        ax.text(0.5, 0.5, "Chart creation failed", ha='center', va='center')
     
     ax.set_title(title, fontsize=14, pad=20)
     ax.axis('equal')  # Equal aspect ratio ensures that pie is drawn as a circle
