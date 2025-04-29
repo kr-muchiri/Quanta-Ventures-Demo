@@ -782,7 +782,7 @@ if run_optimization:
     status_text.text("Running Monte Carlo simulation...")
     simulation_results = simulate_portfolios(returns, cov_matrix, n_simulations)
     progress_bar.progress(100)
-
+    
     # Clear status indicators
     status_text.empty()
     progress_bar.empty()
@@ -802,7 +802,6 @@ if run_optimization:
         "Rolling Metrics",
         "Detailed Statistics"
     ])
-    
     # In the Portfolio Allocation tab, fix the DataFrame creation
 with tabs[0]:  # Portfolio Allocation
     col1, col2 = st.columns([2, 1])
