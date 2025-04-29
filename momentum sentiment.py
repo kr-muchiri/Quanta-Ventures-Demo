@@ -1038,7 +1038,7 @@ with tabs[0]:  # Portfolio Allocation
         """)
 
 # If not running optimization, show instructions
-else:
+if not run_optimization:  # This is the missing if statement
     st.info("👈 Configure your portfolio settings in the sidebar and click 'Optimize Portfolio' to generate results.")
     
     # Show example portfolio allocation
