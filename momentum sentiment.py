@@ -803,39 +803,47 @@ if run_optimization:
         "Detailed Statistics"
     ])
     
-    with tabs[0]:  # Portfolio Allocation
-        col1, col2 = st.columns([2, 1])
+    # In the Portfolio Allocation tab, fix the DataFrame creation
+with tabs[0]:  # Portfolio Allocation
+    col1, col2 = st.columns([2, 1])
+    
+    with col1:
+        # Portfolio weights visualization
+        weights_fig = plot_portfolio_weights(tickers, opt_weights, f"Optimized Portfolio: {opt_method}")
+        st.pyplot(weights_fig)
+    
+    with col2:
+        # Portfolio weights table - with length validation
+        st.subheader("Asset Allocation")
         
-        with col1:
-            # Portfolio weights visualization
-            weights_fig = plot_portfolio_weights(tickers, opt_weights, f"Optimized Portfolio: {opt_method}")
-            st.pyplot(weights_fig)
+        # Ensure tickers and weights have the same length
+        min_len = min(len(tickers), len(opt_weights))
+        display_tickers = tickers[:min_len]
+        display_weights = opt_weights[:min_len]
         
-        with col2:
-            # Portfolio weights table
-            st.subheader("Asset Allocation")
-            weight_df = pd.DataFrame({
-                "Ticker": tickers,
-                "Weight (%)": opt_weights * 100
-            })
-            weight_df = weight_df.sort_values("Weight (%)", ascending=False)
-            
-            # Format table
-            st.dataframe(
-                weight_df[weight_df["Weight (%)"] > 0.1].style.format({
-                    "Weight (%)": "{:.2f}%"
-                }),
-                use_container_width=True
-            )
-            
-            # Add download button
-            csv = weight_df.to_csv(index=False).encode("utf-8")
-            st.download_button(
-                label="📥 Download Weights (CSV)",
-                data=csv,
-                file_name="optimized_portfolio.csv",
-                mime="text/csv"
-            )
+        # Now create DataFrame with validated arrays
+        weight_df = pd.DataFrame({
+            "Ticker": display_tickers,
+            "Weight (%)": display_weights * 100
+        })
+        weight_df = weight_df.sort_values("Weight (%)", ascending=False)
+        
+        # Format table
+        st.dataframe(
+            weight_df[weight_df["Weight (%)"] > 0.1].style.format({
+                "Weight (%)": "{:.2f}%"
+            }),
+            use_container_width=True
+        )
+        
+        # Add download button
+        csv = weight_df.to_csv(index=False).encode("utf-8")
+        st.download_button(
+            label="📥 Download Weights (CSV)",
+            data=csv,
+            file_name="optimized_portfolio.csv",
+            mime="text/csv"
+        )
     
     with tabs[1]:  # Performance
         # Show portfolio performance
